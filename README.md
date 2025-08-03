@@ -6,12 +6,13 @@ Fight other players using drawings 😈
 Move to the doodlefight folder
 
 `cd doodlefight`
+`npm install`
 `npm run dev`
 
 ```
 
 # Info
-WebGPU support is 70% right now,
+WebGPU support is 70% right now, so if 
 [https://caniuse.com/webgpu](caniuse.com)
 If it doesn't work on your browser, you may need to enable it using a feature flag. 
 - Firefox with `dom.webgpu.enabled` feature flag (see [https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Experimental_features#:~:text=tested%20by%20Firefox.-,WebGPU%20API,-The%20WebGPU%20API](here)) 
