@@ -1,5 +1,6 @@
-# DoodleFight
+# DoodleFight 
 Fight other players using drawings 😈
+`Still In Progress`
 
 # Installation and Run
 ```
@@ -12,8 +13,8 @@ Move to the doodlefight folder
 ```
 
 # Info
-WebGPU support is 70% right now, so if 
 [caniuse.com](https://caniuse.com/webgpu)
+WebGPU support is 70% right now, so if 
 If it doesn't work on your browser, you may need to enable it using a feature flag. 
 
 - Firefox with `dom.webgpu.enabled` feature flag (see [here](https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Experimental_features#:~:text=tested%20by%20Firefox.-,WebGPU%20API,-The%20WebGPU%20API)) 
