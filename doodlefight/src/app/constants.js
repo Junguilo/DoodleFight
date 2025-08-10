@@ -1,9 +1,9 @@
-// @ts-nocheck
-
+//
 // taken from https://github.com/xenova/doodle-dash/blob/main/src/constants.js
 export default {
     DEFAULT_MODEL: "quickdraw-mobilevit-small",
     DEFAULT_QUANTIZED: false,
+    BRUSH_SIZE: 2, // Adding brush size constant
     BANNED_LABELS: [
         // List of banned labels, because they are either:
         // - Too similar to other labels
@@ -33,6 +33,10 @@ export default {
     PREDICTION_REFRESH_TIME: 10,
     BRUSH_SIZE: 16,
     TARGET_FPS: 60,
+
+    THROTTLE_MS: 10,
+
+    //Game Constants
     GAME_DURATION: 60 + 0.5, // + 0.5 so it doesn't flicker (TODO: change to 60)
     COUNTDOWN_TIMER: 3,
 
@@ -41,7 +45,7 @@ export default {
     REJECT_TIME_PER_LABEL: 3 * 1000, // How many ms to reject a label for after it's been drawn
 
     SKIP_PENALTY: 3 * 1000, // How much to penalize for skipping a drawing
-
+    
     LABELS: {
         "0": "aircraft carrier", 
         "1": "airplane",
