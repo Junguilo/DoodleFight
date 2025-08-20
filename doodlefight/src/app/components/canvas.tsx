@@ -6,7 +6,7 @@ import {throttle} from '../utils.tsx'; //improve performance
 
 import constants from '../constants.js';
 
-const DoodleCanvas = forwardRef(({onReady, ...props}, ref) => {
+const DoodleCanvas = forwardRef(({onReady, onDrawStart, onDrawEnd, onDraw, ...props}, ref) => {
     const canvasRef = useRef(null);
     const contextRef = useRef(null);
 
@@ -25,11 +25,17 @@ const DoodleCanvas = forwardRef(({onReady, ...props}, ref) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         
-        //canvas height/width
-        canvas.width = window.innerWidth * 2;
-        canvas.height = window.innerHeight * 2;
-        canvas.style.width = `${window.innerWidth}px`;
-        canvas.style.height = `${window.innerHeight}px`;
+        // Get parent container dimensions for better sizing
+        const parent = canvas.parentElement;
+        const parentWidth = parent ? parent.clientWidth : 600;
+        const parentHeight = parent ? parent.clientHeight : 600;
+        
+        //canvas height/width - using parent dimensions with device pixel ratio for high DPI
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = parentWidth * dpr;
+        canvas.height = parentHeight * dpr;
+        canvas.style.width = `${parentWidth}px`;
+        canvas.style.height = `${parentHeight}px`;
 
         //getting access to the 2d Drawing API 
         if(!contextRef.current){
@@ -38,9 +44,8 @@ const DoodleCanvas = forwardRef(({onReady, ...props}, ref) => {
 
         //setting up the brushes
         const context = contextRef.current;
-        context.scale(2, 2);
-        context.imageSmoothingEnabled = true;
-        context.lineWidth = constants.BRUSH_SIZE/2;
+        context.scale(dpr, dpr);
+        context.lineWidth = constants.BRUSH_SIZE;
         context.lineCap = 'round';
         context.strokeStyle = 'black';
 
@@ -60,6 +65,19 @@ const DoodleCanvas = forwardRef(({onReady, ...props}, ref) => {
         contextRef.current.beginPath();
         contextRef.current.moveTo(offsetX, offsetY);
         setIsDrawing(true);
+        
+        // Initialize bounding box on first point
+        if (sketchBoundingBox === null) {
+            setSketchBoundingBox([offsetX, offsetY, offsetX, offsetY]);
+        } else {
+            // Update bounding box with new point
+            updateBoundingBox(offsetX, offsetY);
+        }
+        
+        // Notify parent that drawing has started
+        if (typeof onDrawStart === 'function') {
+            onDrawStart();
+        }
     }
 
     const draw = ({nativeEvent}) => {
@@ -68,98 +86,153 @@ const DoodleCanvas = forwardRef(({onReady, ...props}, ref) => {
         const {offsetX, offsetY} = nativeEvent;
         contextRef.current.lineTo(offsetX, offsetY);
         contextRef.current.stroke();
+        
+        // Update bounding box while drawing
+        updateBoundingBox(offsetX, offsetY);
+        
+        // Call onDraw callback if provided
+        if (typeof onDraw === 'function') {
+            onDraw();
+        }
+    };
+    
+    // Helper function to update the bounding box
+    const updateBoundingBox = (x, y) => {
+        setSketchBoundingBox(prev => {
+            if (!prev) return [x, y, x, y];
+            return [
+                Math.min(prev[0], x),
+                Math.min(prev[1], y),
+                Math.max(prev[2], x),
+                Math.max(prev[3], y)
+            ];
+        });
     };
 
     const finishDrawing = () => {
         contextRef.current.closePath();
         setIsDrawing(false);
+        
+        // Notify parent that drawing has ended
+        if (typeof onDrawEnd === 'function') {
+            onDrawEnd();
+        }
     }
 
+    //center the drawing and format the canvas for the model.
     const getCanvasData = () => {
-        if (sketchBoundingBox === null) return null;
-
-        const context = contextRef.current;
-
-        // Ensure sketch is square (and that aspect ratio is maintained)
-        let left = sketchBoundingBox[0];
-        let top = sketchBoundingBox[1];
-        let width = sketchBoundingBox[2] - sketchBoundingBox[0];
-        let height = sketchBoundingBox[3] - sketchBoundingBox[1];
-        let sketchSize = 2 * SKETCH_PADDING;
-
-        // Center the crop
-        if (width >= height) {
-        sketchSize += width;
-        top = Math.max(top - (width - height) / 2, 0);
-        } else {
-        sketchSize += height;
-        left = Math.max(left - (height - width) / 2, 0);
+        if (sketchBoundingBox === null) {
+            console.log("No drawing detected");
+            return null;
         }
 
-        //left - SKETCH_PADDING, top - SKETCH_PADDING, sketchSize, sketchSize
-        const imgData = context.getImageData(0, 0, canvasRef.current.width, canvasRef.current.height);
-
+        const context = contextRef.current;
+        const dpr = window.devicePixelRatio || 1;
+        
+        // Get the bounding box with padding
+        let [x1, y1, x2, y2] = sketchBoundingBox;
+        
+        // Add padding
+        const paddingAmount = SKETCH_PADDING * 2; // Increase padding for better results
+        x1 = Math.max(0, x1 - paddingAmount);
+        y1 = Math.max(0, y1 - paddingAmount);
+        x2 = Math.min(canvasRef.current.width / dpr, x2 + paddingAmount);
+        y2 = Math.min(canvasRef.current.height / dpr, y2 + paddingAmount);
+        
+        // Calculate dimensions
+        const width = x2 - x1;
+        const height = y2 - y1;
+        
+        // Ensure it's square by taking the larger dimension
+        const size = Math.max(width, height);
+        
+        // Center the drawing in the square
+        let centerX = (x1 + x2) / 2;
+        let centerY = (y1 + y2) / 2;
+        
+        // Calculate the square coordinates
+        const squareX1 = Math.max(0, centerX - size / 2);
+        const squareY1 = Math.max(0, centerY - size / 2);
+        
+        // Make sure we don't go out of bounds
+        const maxSize = Math.min(
+            size,
+            canvasRef.current.width / dpr - squareX1,
+            canvasRef.current.height / dpr - squareY1
+        );
+        
+        console.log("Getting image data from", squareX1, squareY1, maxSize, maxSize);
+        
+        // Get the image data for the square region
+        const imgData = context.getImageData(
+            squareX1 * dpr, 
+            squareY1 * dpr, 
+            maxSize * dpr, 
+            maxSize * dpr
+        );
 
         return imgData;
     }
 
-    const debugDownload = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        // Get ImageData (assuming you have a specific region you want to download)
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height); 
-
-        // Create a temporary canvas for conversion
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = imageData.width;
-        tempCanvas.height = imageData.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.putImageData(imageData, 0, 0); // Put the imageData onto the temporary canvas
-
-        // Convert to data URL
-        const dataURL = tempCanvas.toDataURL('image/png'); // Specify PNG format
-
-        // Create a link element and trigger download
-        const link = document.createElement('a');
-        link.href = dataURL;
-        link.download = 'my-image.png'; // Set desired filename
-        document.body.appendChild(link); // Append link to the document body
-        link.click(); // Trigger the download
-        document.body.removeChild(link); // Remove the link after download
-    }
-
     // Expose methods to parent
-    //Need to expose getCanvasData & ClearCanvas functions to parent
     useImperativeHandle(ref, () => ({
-        debugDownload: () => {  //debugDownload
+        debugDownload: () => {
             if (contextRef.current && canvasRef.current) {
                 debugDownload();
             } else {
                 console.error("Canvas not fully initialized");
             }
         },
-        getCanvasData: () => {  //getCanvasData
+        getCanvasData: () => {
             if (contextRef.current && canvasRef.current) {
-                getCanvasData();
+                return getCanvasData();
             } else {
                 console.error("Canvas not fully initialized");
+                return null;
             }   
+        },
+        // Add a way to access the canvas element directly
+        getCanvasElement: () => canvasRef.current,
+        // Add a method to reset the canvas state
+        resetState: () => {
+            setIsDrawing(false);
+            setSketchBoundingBox(null);
+        },
+        // Add a method to visualize the bounding box
+        visualizeBoundingBox: () => {
+            visualizeBoundingBox();
         }
     }));
 
-
     return(
-        <div>
+        <div className="w-full h-full" 
+            onTouchMove={(e) => e.preventDefault()}
+            onMouseMove={(e) => e.preventDefault()}
+        >
             <canvas                 
                 ref={canvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={finishDrawing}
-                onMouseLeave={finishDrawing} //if mouse leaves canvas
+                onMouseDown={(e) => {
+                    e.preventDefault();
+                    startDrawing(e);
+                }}
+                onMouseMove={(e) => {
+                    e.preventDefault();
+                    draw(e);
+                }}
+                onMouseUp={(e) => {
+                    e.preventDefault();
+                    finishDrawing();
+                }}
+                onMouseLeave={(e) => {
+                    e.preventDefault();
+                    finishDrawing();
+                }}
+                className="w-full h-full"
             />
         </div>
     );
 });
+
 DoodleCanvas.displayName = 'DoodleCanvas';
 
 export default DoodleCanvas;

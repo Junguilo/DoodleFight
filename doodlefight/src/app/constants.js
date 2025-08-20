@@ -3,7 +3,7 @@
 export default {
     DEFAULT_MODEL: "quickdraw-mobilevit-small",
     DEFAULT_QUANTIZED: false,
-    BRUSH_SIZE: 2, // Adding brush size constant
+    BRUSH_SIZE: 16, // Larger brush size like Xenova for better recognition
     BANNED_LABELS: [
         // List of banned labels, because they are either:
         // - Too similar to other labels
@@ -22,16 +22,13 @@ export default {
         "stitches", // too similar to lightning/zigzag
         "sweather", // too similar to "jacket"
         "van", // too similar to other types of vehicles
-        /*
+        //the following bottom are kinda hard to even draw
         "the great wall of china", 
         "hot tub",
         "cruise ship",
         "aircraft carrier",
-
-        */
     ],
     PREDICTION_REFRESH_TIME: 10,
-    BRUSH_SIZE: 16,
     TARGET_FPS: 60,
 
     THROTTLE_MS: 10,
